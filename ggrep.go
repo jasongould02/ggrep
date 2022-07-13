@@ -86,7 +86,7 @@ func searchFile(filename string, pattern string, reader io.Reader) int {
 				pattern = strings.ToLower(pattern);
 			}
 			if inLine := strings.Count(stringBuffer, pattern); inLine  > 0 {
-				fmt.Println("%d : %s", inLine, stringBuffer);
+				fmt.Println(inLine, " : ", stringBuffer);
 				totalMatches += inLine;
 			}
 
