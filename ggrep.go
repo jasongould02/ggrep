@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"io"
+	"io/ioutil"
 	"bytes"
 	"strings"
 	"time"
@@ -18,10 +19,6 @@ func main() {
 
 	lastOptionIndex := 0;
 	for i := 0; i < len(args); i++ {
-		// search for elements that start with hypen, then check for that type of command
-		// -ig = ignore case matches
-		// -mp = patterns are in a [] list delimited by commas
-		// -r = search all files in current folder and sub-folders (recursive search)
 		// if filename is . then search all files in the current folder
 		switch args[i] {
 			case "-ig": // ignore cases when searching
@@ -41,6 +38,40 @@ func main() {
 
 	pattern := args[(lastOptionIndex+1)];
 	filenames := args[(lastOptionIndex + 2):];
+	fmt.Println("filenames: ", filenames);
+
+	if len(filenames) == 1 && filenames[0] == "." {
+
+		//append(filenames,
+		files, _ := ioutil.ReadDir("./");
+		for _, f := range files {
+			if f.IsDir() {
+				fmt.Println("ignoring: ", f.Name());
+				continue;
+			}
+			filenames = append(filenames, f.Name());
+			fmt.Println("appended: ", f.Name());
+		}
+		filenames = filenames[1:];
+	}
+
+
+	files, _ := ioutil.ReadDir("./");
+	for i, f := range files {
+		if f.IsDir() {
+			continue;
+		}
+		fmt.Println(i, " number:", f.Name());
+    }
+
+
+//	if len(filenames) == 1 && filenames[0] == "." {
+		//files, _ := ioutil.ReadDir("./");
+		//fmt.Println("printing out ./");
+		//fmt.Println(files.Name());
+		fmt.Println("finished printing");
+//	}
+
 	for i := 0; i < len(filenames); i++ {
 		file, err := os.OpenFile(filenames[i], os.O_RDONLY, os.ModePerm);
 		if err != nil {
@@ -80,13 +111,12 @@ func searchFile(filename string, pattern string, reader io.Reader) int {
 				break;
 			}
 			stringBuffer := strings.ToLower(string(buffer[position:position+i]));
-			//fmt.Println("%d : %s")
 			if ignoreCase == true {
 				stringBuffer = strings.ToLower(stringBuffer);
 				pattern = strings.ToLower(pattern);
 			}
 			if inLine := strings.Count(stringBuffer, pattern); inLine  > 0 {
-				fmt.Println(inLine, " : ", stringBuffer);
+				fmt.Println(filename, ":", stringBuffer);
 				totalMatches += inLine;
 			}
 
@@ -100,9 +130,9 @@ func searchFile(filename string, pattern string, reader io.Reader) int {
 		}
 
 	}
-	fmt.Println("Total matches in getLineCount()", totalMatches);
-	fmt.Println("Total Bytes:", totalBytes);
-	fmt.Println("Total Time:", time.Now().Sub(start));
+	fmt.Println("Total matches in ", filename, ":", totalMatches);
+	fmt.Println("Total bytes in ", filename, ":", totalBytes);
+	fmt.Println("Total time for ", filename, ":", time.Now().Sub(start));
 	return count;
 }
 
