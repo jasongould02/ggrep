@@ -12,23 +12,6 @@ import (
 	"path/filepath"
 )
 
-/*
-	DONE - if non recursive and directory is given, search directory and NOT sub directories
-
-	if recursive and multiple filenames are given,
-		for all that lead to a directory, search subdirectories as well for all files (that are non executables?),
-			put list into a map. as well as remaining non-directory filenames 
-			then use go routine for each file in list.
-
-			the output of each go routine should be channelled back or somehow sent back to the GSearch struct for its GFile
-
-	Replace 'readDir()' function return type with a map to prevent any possible duplicate file listings
-	
-	DONE - fix err where there is no files to search if there are no search options (-ig, -r, etc) inputted
-
-	DONE - replace filepath.WalkDir with []string of paths
-*/
-
 var wg sync.WaitGroup; // waitgroup
 
 // Option Flags
@@ -41,26 +24,21 @@ func main() {
 	hasOptions := false;
 	lastOptionIndex := 0;
 	for i := 0; i < len(args); i++ {
-		// if filename is . then search all files in the current folder
-		if args[i] == "." {
-			args[i] = "./"
-		}
-
 		if strings.HasPrefix(args[i], "-") {
 			hasOptions = true;
-		switch args[i] {
-			case "-ig": // ignore cases when searching
-				lastOptionIndex = i;
-				ignoreCase = true;
-			case "-mp": // parse for multiple patterns
-				lastOptionIndex = i;
-				fmt.Println("-mp is not implemented yet");
-			case "-r": // search for pattern(s) recursively
-				lastOptionIndex = i;
-				fmt.Println("-r is not implemented yet");
-				recursive = true;
-			default: // not a recognized argument option
-		}
+			switch args[i] {
+				case "-ig": // ignore cases when searching
+					lastOptionIndex = i;
+					ignoreCase = true;
+				case "-mp": // parse for multiple patterns
+					lastOptionIndex = i;
+					fmt.Println("-mp is not implemented yet");
+				case "-r": // search for pattern(s) recursively
+					lastOptionIndex = i;
+					fmt.Println("-r is not implemented yet");
+					recursive = true;
+				default: // not a recognized argument option
+			}
 		}
 	}
 	pattern := args[(lastOptionIndex)];
