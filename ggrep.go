@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 	"path/filepath"
+	//"testing"
 )
 
 var wg sync.WaitGroup; // waitgroup
@@ -24,6 +25,10 @@ func main() {
 	hasOptions := false;
 	lastOptionIndex := 0;
 	for i := 0; i < len(args); i++ {
+		if args[i] == "." {
+			args[i] = "./";
+		}
+
 		if strings.HasPrefix(args[i], "-") {
 			hasOptions = true;
 			switch args[i] {
@@ -35,7 +40,6 @@ func main() {
 					fmt.Println("-mp is not implemented yet");
 				case "-r": // search for pattern(s) recursively
 					lastOptionIndex = i;
-					fmt.Println("-r is not implemented yet");
 					recursive = true;
 				default: // not a recognized argument option
 			}
@@ -50,12 +54,17 @@ func main() {
 
 	temp := make([]string, 0);
 	for _, f := range filenames {
-		temp = append(temp, readDir(f, recursive)...);
+		fmt.Println("looping over filesnames: ", f);
+		if strings.HasSuffix(f, "/") {
+			temp = append(temp, readDir(f, recursive)...);
+		} else {
+			temp = append(temp, f);
+		}
 	}
 
-	for _, f := range temp {
-		fmt.Println("listing path:", f);
-	}
+	//for _, f := range temp {
+	//	fmt.Println("listing path:", f);
+	//}
 	filenames = temp;
 
 	fmt.Println("Printing list of files to search through:");
@@ -67,7 +76,29 @@ func main() {
 	for i := 0; i < len(filenames); i++ {
 		if filenames[i] == "ggrep" {
 			fmt.Println("Skipping the ggrep executable."); // Don't forget to remove this later.
-			fmt.Println("avoiding ggrep file");
+			continue;
+		}
+		wg.Add(1);
+		go func(fns string, p string) {
+			file, _ := os.Open(fns);
+			defer file.Close();
+			searchFile(fns, p, bufio.NewReader(file));
+			wg.Done();
+		}(filenames[i], pattern);
+	}
+	wg.Wait();
+	/*for {
+		time.Sleep(0 * time.Second); // so that program doesnt reach end of main()
+	}*/
+}
+
+// meant for later
+/*func runSearch(filenames []string, pattern string) {
+	fileCount := len(filenames);
+
+	for i := 0; i < fileCount; i++ {
+		if filenames[i] == "ggrep" {
+			fmt.Println("Skipping the ggrep executable.");
 			continue;
 		}
 		file, err := os.Open(filenames[i]);
@@ -76,21 +107,14 @@ func main() {
 			fmt.Println("Error opening file: ", filenames[i]);
 		}
 		reader := bufio.NewReader(file);
-		wg.Add(1); 
-		go func() {
-				fmt.Println("trying to search:", pattern, " in file:", filenames[i]);
-				searchFile(filenames[i], pattern, reader);
-				wg.Done();
-		}()
-		wg.Wait();
+		wg.Add(1);
+		go func(f string, p string, r io.Reader) {
+			searchFile(f, p, r);
+			wg.Done();
+		}(filenames[i], pattern, reader);
+		wg.Wait(); // put oustide of the for loop
 	}
-
-	// Print out clean list of each file
-
-	/*for {
-		time.Sleep(0 * time.Second); // so that program doesnt reach end of main()
-	}*/
-}
+}*/
 
 /*NOTE:
 	I didnt like the filepath.WalkDirFunc alternative to gathering a list of files
@@ -109,8 +133,6 @@ func readDir(path string, rec bool) []string {
 				tpath := filepath.Clean(path + string(os.PathSeparator) + dirName);
 		        filenames = append(filenames, readDir(tpath, rec)...);
 				continue;
-			} else {
-				continue;
 			}
 		}
 		tpath := filepath.Clean(path + string(os.PathSeparator) + f.Name());
@@ -123,7 +145,6 @@ func readDir(path string, rec bool) []string {
 // TODO: Add multi pattern search
 func searchFile(filename string, pattern string, reader io.Reader) int {
 	start := time.Now();
-	fmt.Println("parsing file ", filename);
 	count := 0;
 	buffer := make([]byte, bufio.MaxScanTokenSize);
 	totalBytes := 0;
@@ -164,7 +185,7 @@ func searchFile(filename string, pattern string, reader io.Reader) int {
 	if totalMatches > 0 {
 		fmt.Println("Total matches in ", filename, ":", totalMatches);
 		fmt.Println("Total bytes in ", filename, ":", totalBytes);
-		fmt.Println("Total time (microseconds) for ", filename, ":", time.Now().Sub(start).Microseconds());
+		fmt.Println("Total time (ms) for ", filename, ":", time.Now().Sub(start).Milliseconds());
 	}
 	return count;
 }
