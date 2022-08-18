@@ -14,6 +14,8 @@ import (
 
 var wg sync.WaitGroup; // waitgroup
 
+const BUFFER_SIZE = 4096;
+
 // Option Flags
 var ignoreCase bool;
 var recursive bool;
@@ -70,7 +72,7 @@ func main() {
 		wg.Add(1);
 		go func(fns string, p string) {
 			file, _ := os.Open(fns);
-			searchFile(fns, p, bufio.NewReader(file));
+			searchFile(fns, p, bufio.NewReaderSize(file, BUFFER_SIZE));
 			file.Close();
 			wg.Done();
 		}(key, pattern);
@@ -135,7 +137,7 @@ func searchFile(filename string, pattern string, reader io.Reader) int {
 	start := time.Now();
 	fmt.Println("reading file: ", filename);
 	count := 0;
-	buffer := make([]byte, bufio.MaxScanTokenSize);
+	buffer := make([]byte, BUFFER_SIZE);
 	totalBytes := 0;
 	totalMatches := 0;
 	patternByte := []byte(pattern);
