@@ -10,7 +10,6 @@ import (
 	"sync"
 	"time"
 	"path/filepath"
-	//"testing"
 )
 
 var wg sync.WaitGroup; // waitgroup
@@ -18,6 +17,7 @@ var wg sync.WaitGroup; // waitgroup
 // Option Flags
 var ignoreCase bool;
 var recursive bool;
+var fileList = make(map[string]bool);
 
 func main() {
 	args := os.Args[1:];
@@ -52,39 +52,28 @@ func main() {
 		filenames = args[(lastOptionIndex+2):];
 	}
 
-	temp := make([]string, 0);
 	for _, f := range filenames {
-		fmt.Println("looping over filesnames: ", f);
-		if strings.HasSuffix(f, "/") {
-			temp = append(temp, readDir(f, recursive)...);
-		} else {
-			temp = append(temp, f);
-		}
+		readDir(f, recursive);
 	}
 
-	//for _, f := range temp {
-	//	fmt.Println("listing path:", f);
-	//}
-	filenames = temp;
-
 	fmt.Println("Printing list of files to search through:");
-	fmt.Println(filenames);
+	fmt.Println(fileList);
 	fmt.Println("End of list of files to search through");
 
 	// Start searching for patterns in files
-	fmt.Println("Number of files to search:", len(filenames));
-	for i := 0; i < len(filenames); i++ {
-		if filenames[i] == "ggrep" {
+	fmt.Println("Number of files to search:", len(fileList));
+	for key, _ := range fileList {
+		if key == "ggrep" {
 			fmt.Println("Skipping the ggrep executable."); // Don't forget to remove this later.
 			continue;
 		}
 		wg.Add(1);
 		go func(fns string, p string) {
 			file, _ := os.Open(fns);
-			defer file.Close();
 			searchFile(fns, p, bufio.NewReader(file));
+			file.Close();
 			wg.Done();
-		}(filenames[i], pattern);
+		}(key, pattern);
 	}
 	wg.Wait();
 	/*for {
@@ -123,28 +112,28 @@ func main() {
 	TODO: maybe just call the search function from right in here insteadof adding the relative path to a list, then looping over the list to search
 		  find a way to min the append() calls
 */
-func readDir(path string, rec bool) []string {
+func readDir(path string, rec bool) {
 	files, _ := os.ReadDir(path);
-	filenames := make([]string, 0); 
 	for _, f := range files {
+		tpath := filepath.Clean(path + string(os.PathSeparator) + f.Name());
 		if f.IsDir() {
 			if rec == true {
-				dirName := f.Name();
-				tpath := filepath.Clean(path + string(os.PathSeparator) + dirName);
-		        filenames = append(filenames, readDir(tpath, rec)...);
+				fileList[tpath] = true;
+				readDir(tpath, rec);
+		        //filenames = append(filenames, readDir(tpath, rec)...);
 				continue;
 			}
 		}
-		tpath := filepath.Clean(path + string(os.PathSeparator) + f.Name());
-	    filenames = append(filenames, tpath);
+	    //filenames = append(filenames, tpath);
+		fileList[tpath] = true;
 	}
-	return filenames;
 }
 
 // Returns the number of times pattern appears inside the given file
 // TODO: Add multi pattern search
 func searchFile(filename string, pattern string, reader io.Reader) int {
 	start := time.Now();
+	fmt.Println("reading file: ", filename);
 	count := 0;
 	buffer := make([]byte, bufio.MaxScanTokenSize);
 	totalBytes := 0;
