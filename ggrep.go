@@ -8,9 +8,10 @@ import (
 	"bytes"
 	"strings"
 	"sync"
-	"time"
+	//"time"
 	"path/filepath"
 )
+
 
 var wg sync.WaitGroup; // waitgroup
 
@@ -21,8 +22,21 @@ var ignoreCase bool;
 var recursive bool;
 var fileList = make(map[string]bool);
 
+var messagePipe = make(chan string, 200);
+func messagePipeline() {
+	for {
+		fmt.Println(<-messagePipe);
+	}
+}
+
+func pm(msg string) {
+	messagePipe <- msg;
+}
+
 func main() {
 	args := os.Args[1:];
+
+	go messagePipeline();
 
 	hasOptions := false;
 	lastOptionIndex := 0;
@@ -58,10 +72,6 @@ func main() {
 		readDir(f, recursive);
 	}
 
-	fmt.Println("Printing list of files to search through:");
-	fmt.Println(fileList);
-	fmt.Println("End of list of files to search through");
-
 	// Start searching for patterns in files
 	fmt.Println("Number of files to search:", len(fileList));
 	for key, _ := range fileList {
@@ -78,42 +88,8 @@ func main() {
 		}(key, pattern);
 	}
 	wg.Wait();
-	/*for {
-		time.Sleep(0 * time.Second); // so that program doesnt reach end of main()
-	}*/
 }
 
-// meant for later
-/*func runSearch(filenames []string, pattern string) {
-	fileCount := len(filenames);
-
-	for i := 0; i < fileCount; i++ {
-		if filenames[i] == "ggrep" {
-			fmt.Println("Skipping the ggrep executable.");
-			continue;
-		}
-		file, err := os.Open(filenames[i]);
-		defer file.Close();
-		if err != nil {
-			fmt.Println("Error opening file: ", filenames[i]);
-		}
-		reader := bufio.NewReader(file);
-		wg.Add(1);
-		go func(f string, p string, r io.Reader) {
-			searchFile(f, p, r);
-			wg.Done();
-		}(filenames[i], pattern, reader);
-		wg.Wait(); // put oustide of the for loop
-	}
-}*/
-
-/*NOTE:
-	I didnt like the filepath.WalkDirFunc alternative to gathering a list of files
-	Also since File and DirEntry types do not store the relative path to their respective file, I prepend the sub-directories to the current file.
-
-	TODO: maybe just call the search function from right in here insteadof adding the relative path to a list, then looping over the list to search
-		  find a way to min the append() calls
-*/
 func readDir(path string, rec bool) {
 	files, _ := os.ReadDir(path);
 	for _, f := range files {
@@ -122,11 +98,9 @@ func readDir(path string, rec bool) {
 			if rec == true {
 				fileList[tpath] = true;
 				readDir(tpath, rec);
-		        //filenames = append(filenames, readDir(tpath, rec)...);
 				continue;
 			}
 		}
-	    //filenames = append(filenames, tpath);
 		fileList[tpath] = true;
 	}
 }
@@ -134,8 +108,8 @@ func readDir(path string, rec bool) {
 // Returns the number of times pattern appears inside the given file
 // TODO: Add multi pattern search
 func searchFile(filename string, pattern string, reader io.Reader) int {
-	start := time.Now();
-	fmt.Println("reading file: ", filename);
+	//start := time.Now();
+	//fmt.Println("reading file: ", filename);
 	count := 0;
 	buffer := make([]byte, BUFFER_SIZE);
 	totalBytes := 0;
@@ -146,7 +120,6 @@ func searchFile(filename string, pattern string, reader io.Reader) int {
 		if err != nil && err != io.EOF {
 			return 0;
 		}
-
 		var position int;
 		for {
 			i := bytes.IndexByte(buffer[position:], '\n');
@@ -155,12 +128,12 @@ func searchFile(filename string, pattern string, reader io.Reader) int {
 			}
 			if ignoreCase == true {
 				if inLine := bytes.Count(bytes.ToLower(buffer[position:position+i]), bytes.ToLower(patternByte)); inLine > 0 {
-					fmt.Println(filename, ":", string(buffer[position:position+i]));
+					pm(filename + ":" + string(buffer[position:position+i]));
 					totalMatches += inLine;
 				}
 			} else {
 				if inLine := bytes.Count(buffer[position:position+i], patternByte); inLine > 0 {
-					fmt.Println(filename, ":", string(buffer[position:position+i]));
+					pm(filename + ":" +  string(buffer[position:position+i]));
 					totalMatches += inLine;
 				}
 			}
@@ -173,11 +146,11 @@ func searchFile(filename string, pattern string, reader io.Reader) int {
 		}
 
 	}
-	if totalMatches > 0 {
+	/*if totalMatches > 0 {
 		fmt.Println("Total matches in ", filename, ":", totalMatches);
 		fmt.Println("Total bytes in ", filename, ":", totalBytes);
 		fmt.Println("Total time (ms) for ", filename, ":", time.Now().Sub(start).Milliseconds());
-	}
+	}*/
 	return count;
 }
 
