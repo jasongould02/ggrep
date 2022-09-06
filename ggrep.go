@@ -29,8 +29,9 @@ func messagePipeline() {
 	}
 }
 
-func pm(msg string) {
-	messagePipe <- msg;
+func pm(msg string, str []byte) {
+	//msg = msg + ":" + string(str);
+	messagePipe <- msg + ":" + string(str);
 }
 
 func main() {
@@ -109,7 +110,6 @@ func readDir(path string, rec bool) {
 // TODO: Add multi pattern search
 func searchFile(filename string, pattern string, reader io.Reader) int {
 	//start := time.Now();
-	//fmt.Println("reading file: ", filename);
 	count := 0;
 	buffer := make([]byte, BUFFER_SIZE);
 	totalBytes := 0;
@@ -126,17 +126,18 @@ func searchFile(filename string, pattern string, reader io.Reader) int {
 			if i == -1 || bufferSize == position {
 				break;
 			}
+			inLine := 0;
 			if ignoreCase == true {
-				if inLine := bytes.Count(bytes.ToLower(buffer[position:position+i]), bytes.ToLower(patternByte)); inLine > 0 {
-					pm(filename + ":" + string(buffer[position:position+i]));
-					totalMatches += inLine;
-				}
+				inLine = bytes.Count(bytes.ToLower(buffer[position:position+i]), bytes.ToLower(patternByte));
 			} else {
-				if inLine := bytes.Count(buffer[position:position+i], patternByte); inLine > 0 {
-					pm(filename + ":" +  string(buffer[position:position+i]));
-					totalMatches += inLine;
-				}
+				inLine = bytes.Count(buffer[position:position+i], patternByte);
 			}
+			if inLine > 0 {
+				//pm(filename + ":" + string(buffer[position:position+i])); // use separate go routine for printing
+				pm(filename, buffer[position:position+i]); // concatenate string in separate go routine
+				//fmt.Println(filename + ":" + string(buffer[position:position+i]));
+			}
+			totalMatches += inLine;
 			position += i + 1;
 			count += 1;
 		}
