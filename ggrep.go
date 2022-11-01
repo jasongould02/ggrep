@@ -8,53 +8,48 @@ import (
 	"bytes"
 	"strings"
 	"sync"
-	//"time"
 	"path/filepath"
 )
 
 
-var wg sync.WaitGroup; // waitgroup
+var wg sync.WaitGroup; // waitgroup for go routines
 
 const BUFFER_SIZE = 4096;
 
 // Option Flags
 var ignoreCase bool;
-var recursive bool;
-var fileList = make(map[string]bool);
+var recursive bool; // is recursive search
+var fileList = make(map[string]bool); // list of paths to each file, prevents duplicates
 
 var messagePipe = make(chan string, 200);
 func messagePipeline() {
 	for {
 		fmt.Println(<-messagePipe);
+		wg.Done();
 	}
 }
 
+// pm is for sending 'msg' which is the file path and 'str' which is the line containing the pattern
+// to the messagePipe channel for printing by a seperate go routine
 func pm(msg string, str []byte) {
-	//msg = msg + ":" + string(str);
-	messagePipe <- msg + ":" + string(str);
+	wg.Add(1); // in cases where all files are finished being searched before message pipe can finish printing all matches
+	messagePipe <- msg + ":" + string(str); // append the match found output message to messagePipe channel
 }
 
 func main() {
 	args := os.Args[1:];
-
-	go messagePipeline();
-
 	hasOptions := false;
 	lastOptionIndex := 0;
 	for i := 0; i < len(args); i++ {
 		if args[i] == "." {
 			args[i] = "./";
 		}
-
 		if strings.HasPrefix(args[i], "-") {
 			hasOptions = true;
 			switch args[i] {
 				case "-ig": // ignore cases when searching
 					lastOptionIndex = i;
 					ignoreCase = true;
-				case "-mp": // parse for multiple patterns
-					lastOptionIndex = i;
-					fmt.Println("-mp is not implemented yet");
 				case "-r": // search for pattern(s) recursively
 					lastOptionIndex = i;
 					recursive = true;
@@ -65,25 +60,26 @@ func main() {
 	pattern := args[(lastOptionIndex)];
 	filenames := args[(lastOptionIndex+1):];
 	if hasOptions {
-		pattern = args[(lastOptionIndex+1)];
-		filenames = args[(lastOptionIndex+2):];
+		pattern = args[(lastOptionIndex+1)]; // the pattern appears directly after the options
+		filenames = args[(lastOptionIndex+2):]; // specified files appear after the pattern
 	}
 
 	for _, f := range filenames {
-		readDir(f, recursive);
+		readDir(f, recursive); // files and folders from cmdline arguments, are then checked and added to fileList map
 	}
 
 	// Start searching for patterns in files
 	fmt.Println("Number of files to search:", len(fileList));
+	go messagePipeline();
 	for key, _ := range fileList {
 		if key == "ggrep" {
-			fmt.Println("Skipping the ggrep executable."); // Don't forget to remove this later.
+			fmt.Println("Skipping the ggrep executable.");
 			continue;
 		}
 		wg.Add(1);
-		go func(fns string, p string) {
+		go func(fns string, p string) { // Each file will be opened, searched and closed on its own go routine
 			file, _ := os.Open(fns);
-			searchFile(fns, p, bufio.NewReaderSize(file, BUFFER_SIZE));
+			searchFile(fns, []byte(p), bufio.NewReaderSize(file, BUFFER_SIZE));
 			file.Close();
 			wg.Done();
 		}(key, pattern);
@@ -91,14 +87,14 @@ func main() {
 	wg.Wait();
 }
 
-func readDir(path string, rec bool) {
+func readDir(path string, rec bool) { // adds all files to the fileList map
 	files, _ := os.ReadDir(path);
 	for _, f := range files {
-		tpath := filepath.Clean(path + string(os.PathSeparator) + f.Name());
+		tpath := filepath.Clean(path + string(os.PathSeparator) + f.Name()); // grab file path
 		if f.IsDir() {
-			if rec == true {
-				fileList[tpath] = true;
-				readDir(tpath, rec);
+			if rec == true { 
+				fileList[tpath] = true; // add directory to listing
+				readDir(tpath, rec); // search directory
 				continue;
 			}
 		}
@@ -107,17 +103,16 @@ func readDir(path string, rec bool) {
 }
 
 // Returns the number of times pattern appears inside the given file
-// TODO: Add multi pattern search
-func searchFile(filename string, pattern string, reader io.Reader) int {
-	//start := time.Now();
+// Also prints matches to the message pipe
+func searchFile(filename string, patternByte []byte, reader io.Reader) int {
 	count := 0;
 	buffer := make([]byte, BUFFER_SIZE);
 	totalBytes := 0;
 	totalMatches := 0;
-	patternByte := []byte(pattern);
+	//patternByte := []byte(pattern); // byte array of the pattern, 
 	for {
 		bufferSize, err := reader.Read(buffer);
-		if err != nil && err != io.EOF {
+		if err != nil && err != io.EOF { // end loop if error in reading 
 			return 0;
 		}
 		var position int;
@@ -133,25 +128,17 @@ func searchFile(filename string, pattern string, reader io.Reader) int {
 				inLine = bytes.Count(buffer[position:position+i], patternByte);
 			}
 			if inLine > 0 {
-				//pm(filename + ":" + string(buffer[position:position+i])); // use separate go routine for printing
-				pm(filename, buffer[position:position+i]); // concatenate string in separate go routine
-				//fmt.Println(filename + ":" + string(buffer[position:position+i]));
+				pm(filename, buffer[position:position+i]); // send data to message pipe
 			}
 			totalMatches += inLine;
-			position += i + 1;
+			position += i + 1; // move forward in file
 			count += 1;
 		}
 		totalBytes += position;
-		if err == io.EOF {
+		if err == io.EOF { // EOF after parsing buffer, so that last bit if file data is parsed
 			break;
 		}
-
 	}
-	/*if totalMatches > 0 {
-		fmt.Println("Total matches in ", filename, ":", totalMatches);
-		fmt.Println("Total bytes in ", filename, ":", totalBytes);
-		fmt.Println("Total time (ms) for ", filename, ":", time.Now().Sub(start).Milliseconds());
-	}*/
 	return count;
 }
 
